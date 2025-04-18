@@ -1,0 +1,4 @@
+{
+    "{src}/**/*.ts": ["eslint", "prettier"],
+    "{apps,libs,test}/**/*.ts": ["eslint", "prettier"]
+}

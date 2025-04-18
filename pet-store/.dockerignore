@@ -1,0 +1,13 @@
+node_modules
+temp
+.secrets
+.github
+/coverage*
+types
+.package.json.*
+*tgz
+**/node_modules
+
+.husky
+.secrets
+/charts

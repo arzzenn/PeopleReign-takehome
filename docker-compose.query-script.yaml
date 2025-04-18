@@ -1,0 +1,37 @@
+version: '3.1'
+
+services:
+
+  # database
+  mongo:
+    image: mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: pet-store
+    volumes:
+      - ./mongodb-init:/docker-entrypoint-initdb.d:ro
+
+  # the pet store app
+  pet-store:
+    depends_on:
+      - mongo
+    build:
+      network: host
+      context: ./pet-store
+      dockerfile: Dockerfile
+    environment:
+      - MONGO_HOST=mongo
+
+  # the query-script
+  query-script:
+    depends_on:
+      - mongo
+    build:
+      network: host
+      context: ./query-script
+      dockerfile: Dockerfile
+      no_cache: true
+    environment:
+      - PET_STORE_HOST=pet-store
