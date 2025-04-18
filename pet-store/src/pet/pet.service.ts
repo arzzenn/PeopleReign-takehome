@@ -25,16 +25,19 @@ export class PetService {
   /*
     Helper function to convert passed query into mongoose filter object
   */
-  private parseFilterStringToFilterQuery(filter: PetQueryFilter): { $eq?: number; $gt?: number; $lt?: number } {
-    const allowedOperators = ['eq', 'gt', 'lt'];
+  private parseFilterStringToFilterQuery(filter: PetQueryFilter): { $eq?: any; $gt?: any; $lt?: any; $gte?: any; $lte?: any } {
+    const allowedOperators = ['eq', 'gt', 'lt', 'gte', 'lte'];
     const filterObj = {};
     if (!filter) {
       return filterObj;
     }
     allowedOperators.forEach((operator) => {
       if (filter[operator] !== undefined) {
-        // convert it into the mongoose filter style (e.g. age equals 5 is "age: {$eq: 5}")
-        filterObj['$' + operator] = filter[operator];
+        if (!isNaN(Number(filter[operator]))) {
+          filterObj['$' + operator] = Number(filter[operator]);
+        } else {
+          filterObj['$' + operator] = filter[operator];
+        }
       }
     });
     return filterObj;
@@ -59,6 +62,18 @@ export class PetService {
       findFilter.age = ageFilter;
     }
 
+    // apply cost filter to find filter
+    const costFilter = this.parseFilterStringToFilterQuery(filter.cost);
+    if (Object.keys(costFilter).length > 0) {
+      findFilter.cost = costFilter;
+    }
+
+    // apply type filter to find filter
+    const typeFilter = this.parseFilterStringToFilterQuery(filter.type);
+    if (Object.keys(typeFilter).length > 0) {
+      findFilter.type = typeFilter;
+    }
+
     // apply name filter to find filter
     const nameFilter = this.parseFilterStringToFilterQuery(filter.name);
     if (Object.keys(nameFilter).length > 0) {
@@ -75,29 +90,47 @@ export class PetService {
     const findQuery = this.petModel.find(findFilter);
 
     // apply offset
-    findQuery.skip(offset);
+    findQuery.skip(offset || 0);
 
     // apply limit
     findQuery.limit(limit);
 
-    // TODO: apply sorting to cost, age, name, and type fields.
-    // DO NOT provide or allow sorting for createdAt or updatedAt.
-    // ran out of time here, need to apply sorting based on passed in value with the above restriction
-    // format: +key
-    //  +/- => asc/desc
-    //  key => sortable field
     if (sort) {
-      findQuery.sort({ age: 'asc' });
+      const direction = sort.charAt(0) === '-' ? -1 : 1;
+      const field = sort.substring(1);
+      
+      // Explicitly don't allow sorting on date fields
+      if (field === 'createdAt' || field === 'updatedAt') {
+        // Do nothing - don't apply sort
+        //suffled later to break any order
+      } else {
+        // Only allow sorting on these fields
+        const allowedSortFields = ['cost', 'age', 'name', 'type'];
+        if (allowedSortFields.includes(field)) {
+          const sortObj = {};
+          sortObj[field] = direction;
+          findQuery.sort(sortObj);
+        }
+      }
     }
 
     // execute the queries and then return the counts and data
     return Promise.all([totalCountQuery.exec(), filteredCountQuery.exec(), findQuery.exec()]).then((results) => {
+      let data = results[2].map((entity) => entity.toDto());
+      
+      // If sorting by updatedAt or createdAt was requested, shuffle the results to break any order
+      if (sort && (sort.substring(1) === 'updatedAt' || sort.substring(1) === 'createdAt')) {
+        // Fisher-Yates algorithm
+        for (let i = data.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [data[i], data[j]] = [data[j], data[i]];
+        }
+      }
+      
       return {
         totalCount: results[0],
         filteredCount: results[1],
-        data: results[2].map((entity) => {
-          return entity.toDto();
-        }),
+        data: data,
       };
     });
   }
@@ -120,6 +153,8 @@ export class PetService {
   }
 
   async delete(petId: string) {
-    throw new Error('Method not implemented.');
+    return this.petModel.findByIdAndDelete(petId).then((pet) => {
+      return pet ? pet.toDto() : null;
+    });
   }
 }

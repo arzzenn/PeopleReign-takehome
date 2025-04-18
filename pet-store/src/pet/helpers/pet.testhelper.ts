@@ -41,6 +41,9 @@ export default class PetTestHelper {
     if (overrides.age) {
       entity.age = overrides.age;
     }
+    if (overrides.cost) {
+      entity.cost = overrides.cost;
+    }
     if (overrides.type) {
       entity.type = overrides.type;
     }
